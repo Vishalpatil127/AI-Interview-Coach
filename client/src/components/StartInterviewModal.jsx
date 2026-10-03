@@ -1,70 +1,49 @@
 import { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useNavigate } from 'react-router-dom';
 
-function StartInterviewModal({ isOpen, onClose }) {
-  const { token } = useAuth();
-  const navigate = useNavigate();
-  const [jobTitle, setJobTitle] = useState('');
-  const [experienceLevel, setExperienceLevel] = useState('Mid-level');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+const levels = ['Junior', 'Mid-level', 'Senior', 'Lead'];
 
-  if (!isOpen) return null;
+const quickRoles = [
+  'Frontend Engineer', 'Backend Engineer', 'Full Stack Developer',
+  'Data Scientist', 'DevOps Engineer', 'Product Manager',
+];
+
+function StartInterviewModal({ isOpen, onClose }) {
+  const { token }   = useAuth();
+  const navigate    = useNavigate();
+  const [jobTitle, setJobTitle]           = useState('');
+  const [experienceLevel, setExperienceLevel] = useState('Mid-level');
+  const [loading, setLoading]             = useState(false);
+  const [error, setError]                 = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    if (!jobTitle.trim()) {
-      setError('Please enter a job title.');
-      return;
-    }
-
-    if (!token) {
-      setError('You are not authenticated. Please login again.');
-      return;
-    }
+    if (!jobTitle.trim()) { setError('Please enter a job title.'); return; }
+    if (!token)            { setError('Not authenticated. Please login again.'); return; }
 
     setLoading(true);
     try {
-      console.log('StartInterview: sending request', { jobTitle: jobTitle.trim(), experienceLevel, token });
       const res = await fetch('/api/interviews/generate', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({ jobTitle: jobTitle.trim(), experienceLevel }),
       });
-
-      // Try to parse JSON, but fall back to text for HTML/error pages (helps with DOCTYPE responses)
       let data = null;
-      const contentType = res.headers.get('content-type') || '';
-      if (contentType.includes('application/json')) {
+      const ct = res.headers.get('content-type') || '';
+      if (ct.includes('application/json')) {
         data = await res.json();
       } else {
         const text = await res.text();
-        try {
-          data = text ? JSON.parse(text) : {};
-        } catch {
-          // Not JSON — throw with the raw text so UI shows useful info
-          throw new Error(`Server returned non-JSON response (status ${res.status}): ${text.slice(0, 200)}`);
-        }
+        try { data = text ? JSON.parse(text) : {}; }
+        catch { throw new Error(`Server error (${res.status}): ${text.slice(0, 120)}`); }
       }
-
-      console.log('StartInterview: response', { status: res.status, data });
-
-      if (res.status === 401) {
-        // explicit handling so user doesn't get auto-signed-out silently
-        throw new Error('Unauthorized — your session may have expired. Please login again.');
-      }
-
-      if (!res.ok) throw new Error(data.message || `Failed to generate interview (status ${res.status})`);
-
-      const sessionId = data.sessionId || data.session?._id || null;
-      if (!sessionId) throw new Error('No session id returned');
-
-      // navigate first, then close modal
+      if (res.status === 401) throw new Error('Session expired. Please login again.');
+      if (!res.ok) throw new Error(data?.message || `Failed to generate (${res.status})`);
+      const sessionId = data.sessionId || data.session?._id;
+      if (!sessionId) throw new Error('No session ID returned');
       navigate(`/interview/${sessionId}`);
       onClose?.();
     } catch (err) {
@@ -75,63 +54,120 @@ function StartInterviewModal({ isOpen, onClose }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-6 sm:px-6">
-      <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm" onClick={onClose} />
+    <AnimatePresence>
+      {isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          {/* Backdrop */}
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="absolute inset-0 bg-black/70 backdrop-blur-md"
+            onClick={onClose}
+          />
 
-      <div className="relative z-10 w-full max-w-lg rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm shadow-slate-200">
-        <div className="flex items-start justify-between">
-          <div>
-            <h3 className="text-xl font-semibold tracking-tight text-slate-900">Start New Mock Interview</h3>
-            <p className="mt-2 text-sm text-slate-500">Generate tailored questions for your next role.</p>
-          </div>
-          <button onClick={onClose} className="rounded-full p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700">✕</button>
+          {/* Modal */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.92, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.92, y: 20 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+            className="relative z-10 w-full max-w-lg rounded-3xl border border-white/10 p-7 shadow-2xl shadow-black/60"
+            style={{ background: 'rgba(15,13,38,0.98)', backdropFilter: 'blur(24px)' }}
+          >
+            {/* Header */}
+            <div className="flex items-start justify-between mb-6">
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold">AI</div>
+                  <span className="text-indigo-400 text-xs font-semibold uppercase tracking-widest">New Session</span>
+                </div>
+                <h3 className="text-xl font-bold text-white">Start Mock Interview</h3>
+                <p className="text-slate-400 text-sm mt-1">15 AI-generated questions tailored to your role</p>
+              </div>
+              <button onClick={onClose}
+                className="h-8 w-8 rounded-xl flex items-center justify-center text-slate-500 hover:text-white hover:bg-white/10 transition-all text-sm">✕</button>
+            </div>
+
+            {error && (
+              <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }}
+                className="mb-5 rounded-2xl bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-400">
+                {error}
+              </motion.div>
+            )}
+
+            <form onSubmit={handleSubmit} className="space-y-5">
+              {/* Job title */}
+              <div>
+                <label className="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-2">Job Title</label>
+                <input
+                  value={jobTitle}
+                  onChange={(e) => setJobTitle(e.target.value)}
+                  placeholder="e.g. React Frontend Engineer"
+                  className="w-full rounded-2xl border border-white/10 px-4 py-3 text-white placeholder-slate-500 text-sm outline-none transition-all focus:border-indigo-500/60 focus:ring-2 focus:ring-indigo-500/20"
+                  style={{ background: 'rgba(255,255,255,0.06)' }}
+                />
+                {/* Quick role pills */}
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {quickRoles.map((r) => (
+                    <button key={r} type="button" onClick={() => setJobTitle(r)}
+                      className={`rounded-full border px-3 py-1 text-xs transition-all ${
+                        jobTitle === r
+                          ? 'border-indigo-500 bg-indigo-500/20 text-indigo-300'
+                          : 'border-white/10 text-slate-500 hover:border-indigo-500/40 hover:text-slate-300'
+                      }`}>
+                      {r}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Experience level */}
+              <div>
+                <label className="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-2">Experience Level</label>
+                <div className="grid grid-cols-4 gap-2">
+                  {levels.map((lvl) => (
+                    <button key={lvl} type="button" onClick={() => setExperienceLevel(lvl)}
+                      className={`rounded-2xl border py-2.5 text-sm font-medium transition-all ${
+                        experienceLevel === lvl
+                          ? 'border-indigo-500 bg-indigo-500/20 text-indigo-300 shadow-glow-sm'
+                          : 'border-white/10 text-slate-400 hover:border-white/20 hover:text-white'
+                      }`}>
+                      {lvl}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Info row */}
+              <div className="flex items-center gap-4 rounded-2xl border border-white/6 px-4 py-3" style={{ background: 'rgba(99,102,241,0.06)' }}>
+                {['15 questions', '15 min timer', 'Instant score'].map((t, i) => (
+                  <div key={t} className={`flex-1 text-center ${i < 2 ? 'border-r border-white/8' : ''}`}>
+                    <p className="text-white font-semibold text-sm">{t.split(' ')[0]}</p>
+                    <p className="text-slate-500 text-xs">{t.split(' ').slice(1).join(' ')}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Buttons */}
+              <div className="flex items-center gap-3 pt-1">
+                <button type="button" onClick={onClose}
+                  className="flex-1 rounded-2xl border border-white/10 py-3 text-sm font-medium text-slate-400 hover:text-white hover:border-white/20 transition-all">
+                  Cancel
+                </button>
+                <motion.button type="submit" disabled={loading} whileTap={{ scale: 0.98 }}
+                  className="flex-[2] btn-primary rounded-2xl py-3 text-sm font-semibold text-white disabled:opacity-60">
+                  {loading ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <span className="h-4 w-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                      Generating...
+                    </span>
+                  ) : '⚡ Start Interview'}
+                </motion.button>
+              </div>
+            </form>
+          </motion.div>
         </div>
-
-        <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-          {error && <div className="rounded-2xl bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</div>}
-
-          <label className="block text-sm font-medium text-slate-700">
-            Job title
-            <input
-              value={jobTitle}
-              onChange={(e) => setJobTitle(e.target.value)}
-              placeholder="e.g. Java Backend Engineer"
-              className="mt-2 w-full rounded-[1.25rem] border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900 outline-none transition-all duration-200 focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
-            />
-          </label>
-
-          <label className="block text-sm font-medium text-slate-700">
-            Experience level
-            <select
-              value={experienceLevel}
-              onChange={(e) => setExperienceLevel(e.target.value)}
-              className="mt-2 w-full rounded-[1.25rem] border border-slate-200 bg-white px-4 py-3 text-slate-900 outline-none transition-all duration-200 focus:border-sky-500 focus:ring-2 focus:ring-sky-100"
-            >
-              <option>Junior</option>
-              <option>Mid-level</option>
-              <option>Senior</option>
-              <option>Lead</option>
-            </select>
-          </label>
-
-          <div className="flex items-center justify-end gap-3">
-            <button type="button" onClick={onClose} className="rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition-all duration-200 hover:bg-slate-50">
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="inline-flex items-center gap-2 rounded-2xl bg-sky-600 px-4 py-3 text-sm font-semibold text-white transition-all duration-200 hover:bg-sky-700 disabled:opacity-70"
-            >
-              {loading ? (
-                <span className="inline-flex h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
-              ) : null}
-              {loading ? 'Generating...' : 'Start Interview'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+      )}
+    </AnimatePresence>
   );
 }
 
