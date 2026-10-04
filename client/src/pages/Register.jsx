@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '../context/AuthContext.jsx';
+import { useToast } from '../context/ToastContext.jsx';
 import GoogleSignInButton from '../components/GoogleSignInButton.jsx';
 
 const validateEmail = (v) => /\S+@\S+\.\S+/.test(v);
@@ -23,6 +24,7 @@ const stagger = {
 
 export default function Register() {
   const { login } = useAuth();
+  const toast     = useToast();
   const [form, setForm]       = useState({ name: '', email: '', password: '', confirmPassword: '' });
   const [error, setError]     = useState('');
   const [loading, setLoading] = useState(false);
@@ -49,8 +51,10 @@ export default function Register() {
       try { data = text ? JSON.parse(text) : {}; } catch { data = { message: text || res.statusText }; }
       if (!res.ok) throw new Error(data.message || 'Registration failed');
       login({ token: data.token, user: data.user || { name: form.name, email: form.email } });
+      toast.success('Account created! 🎉', 'Welcome to Interview Coach.');
     } catch (err) {
       setError(err.message);
+      toast.error('Registration failed', err.message);
     } finally {
       setLoading(false);
     }
@@ -58,13 +62,14 @@ export default function Register() {
 
   const handleGoogleSignIn = async (response) => {
     setError('');
-    if (!response?.credential) { setError('Google sign-in failed. Please try again.'); return; }
+    if (!response?.credential) { toast.error('Google sign-in failed', 'Please try again.'); return; }
     try {
       const res  = await fetch('/api/auth/google', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ idToken: response.credential }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Google sign-in failed');
       login({ token: data.token, user: data.user });
-    } catch (err) { setError(err.message); }
+      toast.success('Welcome! 👋', 'Signed up with Google.');
+    } catch (err) { setError(err.message); toast.error('Google sign-in failed', err.message); }
   };
 
   const fields = [

@@ -1,6 +1,7 @@
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import { AuthProvider, useAuth } from './context/AuthContext.jsx';
+import { ToastProvider } from './context/ToastContext.jsx';
 import { lazy, Suspense } from 'react';
 import Footer from './components/Footer.jsx';
 
@@ -81,12 +82,14 @@ function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <div className="min-h-screen flex flex-col">
-          <div className="flex-1">
-            <AppRoutes />
+        <ToastProvider>
+          <div className="min-h-screen flex flex-col">
+            <div className="flex-1">
+              <AppRoutes />
+            </div>
+            <Footer />
           </div>
-          <Footer />
-        </div>
+        </ToastProvider>
       </AuthProvider>
     </BrowserRouter>
   );
