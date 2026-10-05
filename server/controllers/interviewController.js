@@ -455,3 +455,225 @@ export const getInterviewHistory = async (req, res) => {
     return res.status(500).json({ message: 'Failed to fetch interview history' });
   }
 };
+
+// ─── AI MOCK INTERVIEW ───────────────────────────────────────────────────────
+// Generates open-ended questions (no choices) for a conversational AI interview.
+
+function buildFallbackOpenQuestions(jobTitle, experienceLevel, skills = []) {
+  const role  = (jobTitle || 'software engineer').trim();
+  const level = experienceLevel ? `${experienceLevel} ` : '';
+
+  const templates = [
+    `Tell me about yourself and why you're interested in a ${level}${role} role.`,
+    `Describe the most challenging project you've worked on as a ${role}. What was your contribution?`,
+    `How do you stay up to date with new technologies relevant to ${role} work?`,
+    `Walk me through how you would debug a critical production issue in your area of expertise.`,
+    `Give an example of a time you disagreed with a technical decision. How did you handle it?`,
+    `How do you approach estimating the complexity and time required for a new feature?`,
+    `Describe a situation where you had to learn something quickly to complete a task.`,
+    `How do you ensure the quality and reliability of the code you write?`,
+    `Tell me about a time you improved a process or workflow in your team.`,
+    `How do you prioritize tasks when you have multiple competing deadlines?`,
+    skills.length
+      ? `We see ${skills.slice(0, 2).join(' and ')} in your background. How have you applied these in a real project?`
+      : `What technical skills are you most proud of and how have you applied them professionally?`,
+    `Describe your experience working in cross-functional teams. How do you communicate progress and blockers?`,
+    `Tell me about a time a project didn't go as planned. What did you learn from it?`,
+    `Where do you see yourself growing as a ${role} in the next two years?`,
+    `Do you have any questions for us about the role or team?`,
+  ];
+
+  return templates.map((question, index) => ({
+    id: index + 1,
+    type: 'open-ended',
+    question,
+    choices: [],
+    correctAnswer: null,
+    expectedKeyPoints: [],
+  }));
+}
+
+export const generateAIMockInterview = async (req, res) => {
+  try {
+    const { jobTitle, experienceLevel } = req.body || {};
+    if (!jobTitle) return res.status(400).json({ message: 'jobTitle is required' });
+
+    const userId = req.user?.id;
+    const resume = await Resume.findOne({ userId }).sort({ createdAt: -1 }).lean();
+    const skills = resume?.parsedData?.skills || [];
+
+    const jsonSchema = {
+      type: 'array',
+      minItems: 15,
+      maxItems: 15,
+      items: {
+        type: 'object',
+        properties: {
+          id:                { type: 'integer' },
+          type:              { type: 'string', enum: ['open-ended'] },
+          question:          { type: 'string' },
+          expectedKeyPoints: { type: 'array', items: { type: 'string' } },
+        },
+        required: ['id', 'type', 'question', 'expectedKeyPoints'],
+      },
+    };
+
+    const systemPrompt = `You are a Senior Technical Interviewer conducting a realistic mock interview. Generate exactly 15 open-ended interview questions for a ${level || ''}${jobTitle} candidate${skills.length ? ` with skills in ${skills.slice(0, 5).join(', ')}` : ''}. Questions should be conversational, behavioural and technical — similar to a real interview. Each question must have a list of 2-4 expectedKeyPoints a strong answer would cover. Return ONLY valid JSON matching the schema.`;
+
+    let questions = null;
+
+    if (process.env.GENAI_API_KEY) {
+      try {
+        const client = genaiClient;
+        const model  = process.env.GENAI_MODEL || 'gemini-2.5-flash';
+        let genaiResponse = null;
+
+        const prompt = `${systemPrompt}\n\nExperience level: ${experienceLevel || 'unspecified'}`;
+
+        if (client?.text?.generate) {
+          genaiResponse = await client.text.generate({ model, input: prompt, responseMimeType: 'application/json', jsonSchema, apiKey: process.env.GENAI_API_KEY });
+        } else if (typeof client?.generate === 'function') {
+          genaiResponse = await client.generate({ model, input: prompt, responseMimeType: 'application/json', jsonSchema, apiKey: process.env.GENAI_API_KEY });
+        }
+
+        const paths = [
+          genaiResponse?.output?.[0]?.content?.[0]?.text,
+          genaiResponse?.candidates?.[0]?.output,
+          genaiResponse?.text,
+          genaiResponse?.response,
+          genaiResponse?.body,
+        ];
+
+        for (const candidate of paths) {
+          if (candidate && typeof candidate === 'string') {
+            try {
+              const parsed = JSON.parse(candidate);
+              if (Array.isArray(parsed) && parsed.length > 0) { questions = parsed; break; }
+            } catch { /* continue */ }
+          }
+        }
+      } catch (err) {
+        console.warn('GenAI AI mock generation failed, falling back:', err?.message || err);
+      }
+    }
+
+    if (!questions) questions = buildFallbackOpenQuestions(jobTitle, experienceLevel, skills);
+
+    const sessionDoc = await InterviewSession.create({
+      userId,
+      jobTitle,
+      experienceLevel,
+      questions,
+      timerSeconds: 1800, // 30 min for open-ended
+      sessionType: 'ai-mock',
+    });
+
+    return res.status(201).json({ sessionId: sessionDoc._id, questions: sessionDoc.questions, timerSeconds: sessionDoc.timerSeconds });
+  } catch (error) {
+    console.error('Failed to generate AI mock interview', error);
+    return res.status(500).json({ message: 'Failed to generate AI mock interview' });
+  }
+};
+
+// AI Mock submit — stores open-ended text answers and evaluates via Gemini if available
+export const submitAIMockInterview = async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const userId = req.user?.id;
+    const { userAnswers } = req.body || {};
+
+    if (!Array.isArray(userAnswers)) return res.status(400).json({ message: 'userAnswers must be an array' });
+
+    const session = await InterviewSession.findById(sessionId);
+    if (!session) return res.status(404).json({ message: 'Session not found' });
+    if (session.userId?.toString() !== String(userId)) return res.status(403).json({ message: 'Forbidden' });
+
+    // Store text answers
+    session.userAnswers = userAnswers.map((a) => ({
+      questionId:    a.questionId ?? a.id ?? null,
+      answerText:    a.answerText || '',
+      selectedIndex: null,
+      selectedAnswer: '',
+    }));
+
+    // Build evaluations locally (scores based on answer length + keyword matching)
+    const questions = session.questions || [];
+    let evaluations = [];
+
+    if (process.env.GENAI_API_KEY && genaiClient) {
+      try {
+        const systemPrompt = `You are an expert interviewer. Evaluate each open-ended answer. For each give a score 1-10, list strengths, improvements, and an idealAnswer using the STAR method. Return JSON with overallScore, overallSummary, and evaluations array.`;
+        const input = `${systemPrompt}\n\njobTitle: ${session.jobTitle}, level: ${session.experienceLevel}\nQuestions:\n${JSON.stringify(questions.map((q) => ({ id: q.id, question: q.question, expectedKeyPoints: q.expectedKeyPoints })))}\nAnswers:\n${JSON.stringify(session.userAnswers.map((a) => ({ questionId: a.questionId, answerText: a.answerText })))}`;
+
+        const jsonSchema = {
+          type: 'object',
+          properties: {
+            overallScore:   { type: 'number' },
+            overallSummary: { type: 'string' },
+            evaluations: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  questionId:   { type: ['number', 'string'] },
+                  score:        { type: 'number' },
+                  strengths:    { type: 'array', items: { type: 'string' } },
+                  improvements: { type: 'array', items: { type: 'string' } },
+                  idealAnswer:  { type: 'string' },
+                },
+                required: ['questionId', 'score', 'strengths', 'improvements', 'idealAnswer'],
+              },
+            },
+          },
+          required: ['overallScore', 'overallSummary', 'evaluations'],
+        };
+
+        const model = process.env.GENAI_MODEL || 'gemini-2.5-flash';
+        let genaiResponse = null;
+        if (genaiClient?.text?.generate) {
+          genaiResponse = await genaiClient.text.generate({ model, input, responseMimeType: 'application/json', jsonSchema, apiKey: process.env.GENAI_API_KEY });
+        } else if (typeof genaiClient?.generate === 'function') {
+          genaiResponse = await genaiClient.generate({ model, input, responseMimeType: 'application/json', jsonSchema, apiKey: process.env.GENAI_API_KEY });
+        }
+
+        const paths = [genaiResponse?.output?.[0]?.content?.[0]?.text, genaiResponse?.candidates?.[0]?.output, genaiResponse?.text, genaiResponse?.response, genaiResponse?.body];
+        for (const c of paths) {
+          if (c && typeof c === 'string') { try { const p = JSON.parse(c); if (p?.evaluations) { session.evaluationResult = p; break; } } catch { /* continue */ } }
+          else if (c?.evaluations) { session.evaluationResult = c; break; }
+        }
+      } catch (err) {
+        console.warn('AI mock GenAI evaluation failed, falling back:', err?.message);
+      }
+    }
+
+    // Fallback local scoring if GenAI didn't produce a result
+    if (!session.evaluationResult) {
+      evaluations = questions.map((q) => {
+        const ans = session.userAnswers.find((a) => String(a.questionId) === String(q.id ?? q._id)) || {};
+        const words = (ans.answerText || '').split(/\s+/).filter(Boolean).length;
+        const score = Math.min(10, Math.max(1, Math.round(words / 10)));
+        return {
+          questionId:   q.id ?? q._id,
+          score,
+          strengths:    words > 20 ? ['Provided a detailed response.'] : [],
+          improvements: words < 20 ? ['Expand your answer with specific examples using the STAR method.'] : [],
+          idealAnswer:  (q.expectedKeyPoints?.length ? `A strong answer would cover: ${q.expectedKeyPoints.join('; ')}.` : 'Use the STAR method: Situation, Task, Action, Result.'),
+        };
+      });
+      const avg = evaluations.reduce((s, e) => s + e.score, 0) / (evaluations.length || 1);
+      session.evaluationResult = {
+        overallScore:   Number(avg.toFixed(1)),
+        overallSummary: `Your AI mock interview has been evaluated. Average score: ${avg.toFixed(1)}/10. Review the detailed feedback for each question below.`,
+        evaluations,
+      };
+    }
+
+    session.status = 'graded';
+    await session.save();
+
+    return res.json({ message: 'AI mock interview submitted', sessionId: session._id, evaluationResult: session.evaluationResult });
+  } catch (error) {
+    console.error('Failed to submit AI mock interview', error);
+    return res.status(500).json({ message: 'Failed to submit AI mock interview' });
+  }
+};

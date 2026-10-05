@@ -13,6 +13,7 @@ const Profile = lazy(() => import('./pages/Profile.jsx'));
 const Dashboard = lazy(() => import('./pages/Dashboard.jsx'));
 const Reviews = lazy(() => import('./pages/Reviews.jsx'));
 const Interview = lazy(() => import('./pages/InterviewPage.jsx'));
+const AIMockInterview = lazy(() => import('./pages/AIMockInterviewPage.jsx'));
 const ResultsPage = lazy(() => import('./pages/ResultsPage.jsx'));
 
 function ProtectedRoute({ children }) {
@@ -60,6 +61,14 @@ function AppRoutes() {
           element={
             <ProtectedRoute>
               <Interview />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/ai-interview/:sessionId"
+          element={
+            <ProtectedRoute>
+              <AIMockInterview />
             </ProtectedRoute>
           }
         />
