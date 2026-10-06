@@ -2,12 +2,13 @@ import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
+import { ProfileSkeleton } from '../components/Skeleton.jsx';
 
 export default function Profile() {
   const { token, user, login, logout } = useAuth();
   const toast = useToast();
   const [profile, setProfile] = useState({ name: '', email: '', headline: '', location: '', bio: '', phone: '' });
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [saving,  setSaving]  = useState(false);
   const [focused, setFocused] = useState('');
 
@@ -55,12 +56,14 @@ export default function Profile() {
     }
   };
 
+  if (loading) return <ProfileSkeleton />;
+
   const fields = [
-    { name: 'name',     label: 'Full Name',  type: 'text',  placeholder: 'Jane Doe',          col: 1 },
-    { name: 'email',    label: 'Email',       type: 'email', placeholder: '',                  col: 1, disabled: true },
-    { name: 'headline', label: 'Headline',    type: 'text',  placeholder: 'Senior Engineer',   col: 1 },
-    { name: 'location', label: 'Location',    type: 'text',  placeholder: 'Mumbai, India',     col: 1 },
-    { name: 'phone',    label: 'Phone',       type: 'tel',   placeholder: '+91 98765 43210',   col: 2 },
+    { name: 'name',     label: 'Full Name',  type: 'text',  placeholder: 'Jane Doe',         col: 1 },
+    { name: 'email',    label: 'Email',       type: 'email', placeholder: '',                 col: 1, disabled: true },
+    { name: 'headline', label: 'Headline',    type: 'text',  placeholder: 'Senior Engineer',  col: 1 },
+    { name: 'location', label: 'Location',    type: 'text',  placeholder: 'Mumbai, India',    col: 1 },
+    { name: 'phone',    label: 'Phone',       type: 'tel',   placeholder: '+91 98765 43210',  col: 2 },
   ];
 
   return (
@@ -87,7 +90,7 @@ export default function Profile() {
       <motion.main initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}
         className="mx-auto max-w-3xl px-6 py-10">
 
-        {/* hero */}
+        {/* avatar + name */}
         <div className="flex items-center gap-5 mb-8">
           <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold text-2xl shadow-glow-sm">
             {user?.name?.[0]?.toUpperCase() || 'U'}
@@ -99,73 +102,66 @@ export default function Profile() {
         </div>
 
         <div className="rounded-3xl border border-white/8 p-6 sm:p-8" style={{ background: 'rgba(255,255,255,0.03)' }}>
-          {loading ? (
-            <div className="flex items-center justify-center py-16 gap-3">
-              <div className="h-6 w-6 rounded-full border-2 border-indigo-500/30 border-t-indigo-500 animate-spin" />
-              <span className="text-slate-500 text-sm">Loading profile...</span>
-            </div>
-          ) : (
-            <form onSubmit={handleSave} className="space-y-5">
-              <div className="grid gap-5 sm:grid-cols-2">
-                {fields.filter((f) => f.col === 1).map((f) => (
-                  <div key={f.name}>
-                    <label className="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-1.5">{f.label}</label>
-                    <div className={`rounded-2xl transition-all duration-200 ${focused === f.name ? 'ring-2 ring-indigo-500/30' : ''}`}>
-                      <input
-                        name={f.name} type={f.type} value={profile[f.name] || ''}
-                        onChange={handleChange} disabled={f.disabled}
-                        onFocus={() => setFocused(f.name)} onBlur={() => setFocused('')}
-                        placeholder={f.placeholder}
-                        className={`w-full rounded-2xl border border-white/10 px-4 py-3 text-sm outline-none transition-all
-                          ${f.disabled ? 'text-slate-500 cursor-not-allowed opacity-50' : 'text-white focus:border-indigo-500/60'}`}
-                        style={{ background: f.disabled ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.06)' }}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* phone full width */}
-              {fields.filter((f) => f.col === 2).map((f) => (
+          <form onSubmit={handleSave} className="space-y-5">
+            <div className="grid gap-5 sm:grid-cols-2">
+              {fields.filter((f) => f.col === 1).map((f) => (
                 <div key={f.name}>
                   <label className="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-1.5">{f.label}</label>
                   <div className={`rounded-2xl transition-all duration-200 ${focused === f.name ? 'ring-2 ring-indigo-500/30' : ''}`}>
                     <input
                       name={f.name} type={f.type} value={profile[f.name] || ''}
-                      onChange={handleChange}
+                      onChange={handleChange} disabled={f.disabled}
                       onFocus={() => setFocused(f.name)} onBlur={() => setFocused('')}
                       placeholder={f.placeholder}
-                      className="w-full rounded-2xl border border-white/10 px-4 py-3 text-sm text-white outline-none focus:border-indigo-500/60 transition-all"
-                      style={{ background: 'rgba(255,255,255,0.06)' }}
+                      className={`w-full rounded-2xl border border-white/10 px-4 py-3 text-sm outline-none transition-all
+                        ${f.disabled ? 'text-slate-500 cursor-not-allowed opacity-50' : 'text-white focus:border-indigo-500/60'}`}
+                      style={{ background: f.disabled ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.06)' }}
                     />
                   </div>
                 </div>
               ))}
+            </div>
 
-              {/* bio */}
-              <div>
-                <label className="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-1.5">Bio</label>
-                <div className={`rounded-2xl transition-all duration-200 ${focused === 'bio' ? 'ring-2 ring-indigo-500/30' : ''}`}>
-                  <textarea name="bio" value={profile.bio || ''} onChange={handleChange} rows={4}
-                    onFocus={() => setFocused('bio')} onBlur={() => setFocused('')}
-                    placeholder="Tell us a bit about yourself..."
-                    className="w-full rounded-2xl border border-white/10 px-4 py-3 text-sm text-white placeholder-slate-500 outline-none focus:border-indigo-500/60 transition-all resize-none"
-                    style={{ background: 'rgba(255,255,255,0.06)' }} />
+            {fields.filter((f) => f.col === 2).map((f) => (
+              <div key={f.name}>
+                <label className="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-1.5">{f.label}</label>
+                <div className={`rounded-2xl transition-all duration-200 ${focused === f.name ? 'ring-2 ring-indigo-500/30' : ''}`}>
+                  <input
+                    name={f.name} type={f.type} value={profile[f.name] || ''}
+                    onChange={handleChange}
+                    onFocus={() => setFocused(f.name)} onBlur={() => setFocused('')}
+                    placeholder={f.placeholder}
+                    className="w-full rounded-2xl border border-white/10 px-4 py-3 text-sm text-white outline-none focus:border-indigo-500/60 transition-all"
+                    style={{ background: 'rgba(255,255,255,0.06)' }}
+                  />
                 </div>
               </div>
+            ))}
 
-              <div className="flex items-center justify-end gap-3 pt-2">
-                <button type="button" onClick={() => window.location.reload()}
-                  className="rounded-2xl border border-white/10 px-5 py-3 text-sm text-slate-400 hover:text-white hover:border-white/20 transition-all">
-                  Reset
-                </button>
-                <motion.button type="submit" disabled={saving || loading} whileTap={{ scale: 0.98 }}
-                  className="btn-primary rounded-2xl px-6 py-3 text-sm font-semibold text-white disabled:opacity-60">
-                  {saving ? <span className="flex items-center gap-2"><span className="h-4 w-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />Saving...</span> : 'Save Profile'}
-                </motion.button>
+            <div>
+              <label className="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-1.5">Bio</label>
+              <div className={`rounded-2xl transition-all duration-200 ${focused === 'bio' ? 'ring-2 ring-indigo-500/30' : ''}`}>
+                <textarea name="bio" value={profile.bio || ''} onChange={handleChange} rows={4}
+                  onFocus={() => setFocused('bio')} onBlur={() => setFocused('')}
+                  placeholder="Tell us a bit about yourself..."
+                  className="w-full rounded-2xl border border-white/10 px-4 py-3 text-sm text-white placeholder-slate-500 outline-none focus:border-indigo-500/60 transition-all resize-none"
+                  style={{ background: 'rgba(255,255,255,0.06)' }} />
               </div>
-            </form>
-          )}
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button type="button" onClick={() => window.location.reload()}
+                className="rounded-2xl border border-white/10 px-5 py-3 text-sm text-slate-400 hover:text-white hover:border-white/20 transition-all">
+                Reset
+              </button>
+              <motion.button type="submit" disabled={saving} whileTap={{ scale: 0.98 }}
+                className="btn-primary rounded-2xl px-6 py-3 text-sm font-semibold text-white disabled:opacity-60">
+                {saving
+                  ? <span className="flex items-center gap-2"><span className="h-4 w-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />Saving...</span>
+                  : 'Save Profile'}
+              </motion.button>
+            </div>
+          </form>
         </div>
       </motion.main>
     </div>

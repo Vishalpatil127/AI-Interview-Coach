@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, Tooltip, CartesianGrid, XAxis, YAxis } from 'recharts';
+import { InterviewSkeleton } from '../components/Skeleton.jsx';
 
 const pageVariants = {
   hidden: { opacity: 0, y: 24 },
@@ -151,15 +152,7 @@ export default function InterviewPage() {
     }
   }, [answers, navigate, session, sessionId, token, submitting]);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-slate-50 px-6 py-10 text-slate-900">
-        <div className="mx-auto max-w-4xl rounded-[2rem] border border-slate-200 bg-white p-8 shadow-sm shadow-slate-200">
-          <div className="h-48 animate-pulse rounded-3xl bg-slate-100" />
-        </div>
-      </div>
-    );
-  }
+  if (loading) return <InterviewSkeleton />;
 
   if (error) {
     return (

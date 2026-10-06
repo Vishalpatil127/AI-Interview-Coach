@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import confetti from 'canvas-confetti';
+import { ResultsSkeleton } from '../components/Skeleton.jsx';
 
 /* ── helpers ── */
 function StatusBadge({ score }) {
@@ -132,14 +133,7 @@ export default function ResultsPage() {
   const createdAt = session?.createdAt ? new Date(session.createdAt).toLocaleString() : 'Unknown date';
 
   /* ── states ── */
-  if (loading) return (
-    <div className="min-h-screen bg-[#070614] flex items-center justify-center">
-      <div className="flex flex-col items-center gap-4">
-        <div className="h-10 w-10 rounded-full border-2 border-indigo-500/30 border-t-indigo-500 animate-spin" />
-        <p className="text-slate-400 text-sm">Loading results...</p>
-      </div>
-    </div>
-  );
+  if (loading) return <ResultsSkeleton />;
 
   if (error && !session) return (
     <div className="min-h-screen bg-[#070614] flex items-center justify-center px-6">

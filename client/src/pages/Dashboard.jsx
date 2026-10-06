@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ResumeUpload from '../components/ResumeUpload.jsx';
 import StartInterviewModal from '../components/StartInterviewModal.jsx';
+import { DashboardSkeleton, HistoryTableSkeleton } from '../components/Skeleton.jsx';
 import {
   ResponsiveContainer, LineChart, Line, Area, AreaChart,
   XAxis, YAxis, Tooltip, CartesianGrid,
@@ -105,7 +106,7 @@ export default function Dashboard() {
   const { user, logout, token } = useAuth();
   const [showModal, setShowModal]         = useState(false);
   const [history, setHistory]             = useState([]);
-  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [loadingHistory, setLoadingHistory] = useState(true);
   const [error, setError]                 = useState('');
   const [activeTab, setActiveTab]         = useState('overview');
 
@@ -181,6 +182,8 @@ export default function Dashboard() {
     { label: 'Avg Score',        value: avgScore,                    icon: '📊', gradient: 'bg-amber-500' },
     { label: 'Best Score',       value: bestScore != null ? `${bestScore}/10` : 'N/A', icon: '🏆', gradient: 'bg-purple-500' },
   ];
+
+  if (loadingHistory) return <DashboardSkeleton />;
 
   return (
     <div className="min-h-screen bg-[#070614] bg-grid text-white">
@@ -501,10 +504,7 @@ export default function Dashboard() {
                 </div>
 
                 {loadingHistory ? (
-                  <div className="flex items-center justify-center py-16 gap-3">
-                    <div className="h-6 w-6 rounded-full border-2 border-indigo-500/30 border-t-indigo-500 animate-spin" />
-                    <span className="text-slate-500 text-sm">Loading sessions...</span>
-                  </div>
+                  <HistoryTableSkeleton />
                 ) : tableRows.length ? (
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">

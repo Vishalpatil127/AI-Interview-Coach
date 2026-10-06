@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import useSpeechToText from '../hooks/useSpeechToText.js';
+import { InterviewSkeleton } from '../components/Skeleton.jsx';
 
 function formatTime(s) {
   const m = Math.floor(s / 60);
@@ -180,13 +181,7 @@ export default function AIMockInterviewPage() {
     }
   }, [answers, isListening, navigate, session, sessionId, stopListening, submitting, token]);
 
-  /* ── Render guards ── */
-  if (loading) return (
-    <div className="min-h-screen bg-[#070614] flex items-center justify-center gap-4">
-      <div className="h-8 w-8 rounded-full border-2 border-indigo-500/30 border-t-indigo-500 animate-spin" />
-      <p className="text-slate-400 text-sm">Loading your interview...</p>
-    </div>
-  );
+  if (loading) return <InterviewSkeleton />;
 
   if (error) return (
     <div className="min-h-screen bg-[#070614] flex items-center justify-center px-6">
