@@ -116,16 +116,19 @@ function buildFallbackQuestions(jobTitle, experienceLevel, skills = []) {
 
 export const generateInterview = async (req, res) => {
   try {
-    const { jobTitle, experienceLevel } = req.body || {};
+    const { jobTitle, experienceLevel, difficulty = 'medium' } = req.body || {};
     if (!jobTitle) return res.status(400).json({ message: 'jobTitle is required' });
 
     const userId = req.user?.id;
-
-    // fetch latest parsed resume to get skills
     const resume = await Resume.findOne({ userId }).sort({ createdAt: -1 }).lean();
     const skills = (resume?.parsedData?.skills) || [];
 
-    // Prepare schema for GenAI: array of 15 MCQ objects
+    const difficultyGuide = {
+      easy:   'Focus on fundamental concepts, definitions, and straightforward scenarios suitable for beginners.',
+      medium: 'Focus on real-world application, moderate complexity, and practical problem-solving.',
+      hard:   'Focus on advanced concepts, edge cases, tricky scenarios, and deep technical knowledge.',
+    };
+
     const jsonSchema = {
       type: 'array',
       minItems: 15,
@@ -144,7 +147,7 @@ export const generateInterview = async (req, res) => {
       },
     };
 
-    const systemPrompt = `You are a Senior Technical Interview Designer. Generate fifteen MCQ interview questions tailored to the target role: ${jobTitle} and the candidate's skills: ${skills.join(', ') || 'none provided'}. For each question include an integer id (1-15), type as 'mcq', the question text, an array of exactly four answer choices, and the zero-based index of the correct answer. Also include expected key points for the question. Keep questions concise, role-focused, and suitable for a timed professional assessment.`;
+    const systemPrompt = `You are a Senior Technical Interview Designer. Generate fifteen MCQ interview questions tailored to the target role: ${jobTitle} and the candidate's skills: ${skills.join(', ') || 'none provided'}. Difficulty: ${difficulty}. ${difficultyGuide[difficulty] || difficultyGuide.medium} For each question include an integer id (1-15), type as 'mcq', the question text, an array of exactly four answer choices, and the zero-based index of the correct answer. Also include expected key points. Keep questions concise, role-focused, and suitable for a timed professional assessment.`;
 
     let questions = null;
 
@@ -207,6 +210,8 @@ export const generateInterview = async (req, res) => {
       userId,
       jobTitle,
       experienceLevel,
+      difficulty,
+      sessionType: 'mcq',
       questions,
       timerSeconds: 900,
     });
@@ -495,12 +500,19 @@ function buildFallbackOpenQuestions(jobTitle, experienceLevel, skills = []) {
 
 export const generateAIMockInterview = async (req, res) => {
   try {
-    const { jobTitle, experienceLevel } = req.body || {};
+    const { jobTitle, experienceLevel, difficulty = 'medium' } = req.body || {};
     if (!jobTitle) return res.status(400).json({ message: 'jobTitle is required' });
 
     const userId = req.user?.id;
     const resume = await Resume.findOne({ userId }).sort({ createdAt: -1 }).lean();
     const skills = resume?.parsedData?.skills || [];
+
+    const difficultyGuide = {
+      easy:   'Ask foundational and introductory questions suitable for beginners or juniors.',
+      medium: 'Ask practical, scenario-based questions that test real-world experience.',
+      hard:   'Ask advanced, nuanced questions that challenge depth of knowledge and problem-solving.',
+    };
+    const level = experienceLevel ? `${experienceLevel} ` : '';
 
     const jsonSchema = {
       type: 'array',
@@ -518,7 +530,7 @@ export const generateAIMockInterview = async (req, res) => {
       },
     };
 
-    const systemPrompt = `You are a Senior Technical Interviewer conducting a realistic mock interview. Generate exactly 15 open-ended interview questions for a ${level || ''}${jobTitle} candidate${skills.length ? ` with skills in ${skills.slice(0, 5).join(', ')}` : ''}. Questions should be conversational, behavioural and technical — similar to a real interview. Each question must have a list of 2-4 expectedKeyPoints a strong answer would cover. Return ONLY valid JSON matching the schema.`;
+    const systemPrompt = `You are a Senior Technical Interviewer conducting a realistic mock interview. Generate exactly 15 open-ended interview questions for a ${level}${jobTitle} candidate${skills.length ? ` with skills in ${skills.slice(0, 5).join(', ')}` : ''}. Difficulty: ${difficulty}. ${difficultyGuide[difficulty] || difficultyGuide.medium} Questions should be conversational, behavioural and technical — similar to a real interview. Each question must have a list of 2-4 expectedKeyPoints a strong answer would cover. Return ONLY valid JSON matching the schema.`;
 
     let questions = null;
 
@@ -563,9 +575,10 @@ export const generateAIMockInterview = async (req, res) => {
       userId,
       jobTitle,
       experienceLevel,
-      questions,
-      timerSeconds: 1800, // 30 min for open-ended
+      difficulty,
       sessionType: 'ai-mock',
+      questions,
+      timerSeconds: 1800,
     });
 
     return res.status(201).json({ sessionId: sessionDoc._id, questions: sessionDoc.questions, timerSeconds: sessionDoc.timerSeconds });

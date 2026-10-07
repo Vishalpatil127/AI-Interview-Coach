@@ -26,7 +26,7 @@ function AppRoutes() {
 
   return (
     <AnimatePresence mode="wait">
-      <Suspense fallback={<div className="min-h-screen bg-slate-50" />}>
+      <Suspense fallback={<div className="min-h-screen bg-[#070614]" />}>
         <Routes location={location} key={location.pathname}>
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />

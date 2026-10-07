@@ -18,6 +18,8 @@ const InterviewSessionSchema = new Schema({
   userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   jobTitle: { type: String, required: true },
   experienceLevel: { type: String },
+  difficulty: { type: String, enum: ['easy', 'medium', 'hard'], default: 'medium' },
+  sessionType: { type: String, enum: ['mcq', 'ai-mock'], default: 'mcq' },
   questions: { type: [QuestionSchema], default: [] },
   timerSeconds: { type: Number, default: 900 },
   userAnswers: {
@@ -26,6 +28,7 @@ const InterviewSessionSchema = new Schema({
         questionId: { type: Schema.Types.Mixed },
         selectedIndex: { type: Number },
         selectedAnswer: { type: String },
+        answerText: { type: String, default: '' },
       },
     ],
     default: [],

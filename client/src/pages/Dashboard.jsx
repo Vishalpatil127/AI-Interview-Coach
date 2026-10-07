@@ -133,6 +133,23 @@ export default function Dashboard() {
 
   const completedSessions = useMemo(() => history.filter((s) => s.status !== 'pending'), [history]);
 
+  // ── Streak: count consecutive days with at least one session up to today ──
+  const streak = useMemo(() => {
+    if (!history.length) return 0;
+    const days = new Set(
+      history.map((s) => new Date(s.createdAt).toLocaleDateString('en-CA')) // YYYY-MM-DD
+    );
+    let count = 0;
+    const d = new Date();
+    while (true) {
+      const key = d.toLocaleDateString('en-CA');
+      if (!days.has(key)) break;
+      count++;
+      d.setDate(d.getDate() - 1);
+    }
+    return count;
+  }, [history]);
+
   const scoreValues = useMemo(() =>
     completedSessions.map((s) => ({
       date:  new Date(s.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }),
@@ -177,10 +194,11 @@ export default function Dashboard() {
   const tableRows = history.slice(0, 8);
 
   const metrics = [
-    { label: 'Total Sessions',   value: history.length,             icon: '🎯', gradient: 'bg-indigo-500' },
-    { label: 'Completed',        value: completedSessions.length,    icon: '✅', gradient: 'bg-emerald-500' },
-    { label: 'Avg Score',        value: avgScore,                    icon: '📊', gradient: 'bg-amber-500' },
-    { label: 'Best Score',       value: bestScore != null ? `${bestScore}/10` : 'N/A', icon: '🏆', gradient: 'bg-purple-500' },
+    { label: 'Total Sessions',   value: history.length,                                            icon: '🎯', gradient: 'bg-indigo-500' },
+    { label: 'Completed',        value: completedSessions.length,                                   icon: '✅', gradient: 'bg-emerald-500' },
+    { label: 'Avg Score',        value: avgScore,                                                   icon: '📊', gradient: 'bg-amber-500' },
+    { label: 'Best Score',       value: bestScore != null ? `${bestScore}/10` : 'N/A',             icon: '🏆', gradient: 'bg-purple-500' },
+    { label: 'Day Streak',       value: streak > 0 ? `${streak} 🔥` : '0',                        icon: '🔥', gradient: 'bg-orange-500' },
   ];
 
   if (loadingHistory) return <DashboardSkeleton />;
@@ -265,6 +283,20 @@ export default function Dashboard() {
                   ? `You've completed ${completedSessions.length} interview${completedSessions.length > 1 ? 's' : ''}. ${trend === 'up' ? '📈 Your scores are trending up!' : trend === 'down' ? 'Keep practising to improve.' : ''}`
                   : 'Start your first mock interview to track your progress.'}
               </p>
+              {streak > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.3, type: 'spring', stiffness: 300 }}
+                  className="mt-4 inline-flex items-center gap-2 rounded-2xl border border-orange-500/30 bg-orange-500/10 px-4 py-2"
+                >
+                  <span className="text-xl">🔥</span>
+                  <div>
+                    <span className="text-orange-300 font-bold text-sm">{streak} day streak!</span>
+                    <span className="text-slate-400 text-xs ml-2">Keep it going — practice daily.</span>
+                  </div>
+                </motion.div>
+              )}
             </div>
             <div className="flex flex-wrap gap-3">
               <motion.button whileTap={{ scale: 0.97 }} onClick={() => setShowModal(true)}
@@ -280,7 +312,7 @@ export default function Dashboard() {
         </motion.div>
 
         {/* ── Metrics grid ── */}
-        <motion.div variants={cardVariants} className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <motion.div variants={cardVariants} className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
           {metrics.map((m, i) => <MetricCard key={m.label} {...m} delay={i * 0.08} />)}
         </motion.div>
 
@@ -472,10 +504,10 @@ export default function Dashboard() {
               {completedSessions.length > 0 && (
                 <motion.div variants={cardVariants} className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                   {[
-                    { label: 'Best session',    value: bestScore != null ? `${bestScore}/10` : '—', icon: '🏆' },
-                    { label: 'Avg score',       value: avgScore !== 'N/A' ? `${avgScore}/10` : '—', icon: '📈' },
-                    { label: 'Sessions done',   value: completedSessions.length, icon: '✅' },
-                    { label: 'Trend',           value: trend === 'up' ? '↑ Up' : trend === 'down' ? '↓ Down' : '—', icon: trend === 'up' ? '🚀' : '💪' },
+                    { label: 'Best session',  value: bestScore != null ? `${bestScore}/10` : '—', icon: '🏆' },
+                    { label: 'Avg score',     value: avgScore !== 'N/A' ? `${avgScore}/10` : '—', icon: '📈' },
+                    { label: 'Sessions done', value: completedSessions.length, icon: '✅' },
+                    { label: 'Day streak',    value: streak > 0 ? `${streak} 🔥` : '—', icon: '🔥' },
                   ].map((s) => (
                     <div key={s.label} className="rounded-2xl border border-white/8 p-4 text-center" style={{ background: 'rgba(255,255,255,0.03)' }}>
                       <div className="text-2xl mb-2">{s.icon}</div>

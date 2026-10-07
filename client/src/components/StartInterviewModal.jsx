@@ -5,6 +5,11 @@ import { useToast } from '../context/ToastContext.jsx';
 import { useNavigate } from 'react-router-dom';
 
 const levels    = ['Junior', 'Mid-level', 'Senior', 'Lead'];
+const DIFFICULTIES = [
+  { id: 'easy',   label: 'Easy',   color: 'border-emerald-500 bg-emerald-500/15 text-emerald-300', desc: 'Fundamentals & concepts' },
+  { id: 'medium', label: 'Medium', color: 'border-amber-500 bg-amber-500/15 text-amber-300',       desc: 'Real-world application' },
+  { id: 'hard',   label: 'Hard',   color: 'border-red-500 bg-red-500/15 text-red-300',             desc: 'Advanced & tricky' },
+];
 const quickRoles = ['Frontend Engineer', 'Backend Engineer', 'Full Stack Developer', 'Data Scientist', 'DevOps Engineer', 'Product Manager'];
 
 const MODES = [
@@ -33,6 +38,7 @@ function StartInterviewModal({ isOpen, onClose }) {
   const [mode, setMode]                       = useState('mcq');
   const [jobTitle, setJobTitle]               = useState('');
   const [experienceLevel, setExperienceLevel] = useState('Mid-level');
+  const [difficulty, setDifficulty]           = useState('medium');
   const [loading, setLoading]                 = useState(false);
   const [error, setError]                     = useState('');
 
@@ -48,7 +54,7 @@ function StartInterviewModal({ isOpen, onClose }) {
       const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ jobTitle: jobTitle.trim(), experienceLevel }),
+        body: JSON.stringify({ jobTitle: jobTitle.trim(), experienceLevel, difficulty }),
       });
       let data = null;
       const ct = res.headers.get('content-type') || '';
@@ -145,6 +151,20 @@ function StartInterviewModal({ isOpen, onClose }) {
                     <button key={lvl} type="button" onClick={() => setExperienceLevel(lvl)}
                       className={`rounded-2xl border py-2.5 text-sm font-medium transition-all ${experienceLevel === lvl ? 'border-indigo-500 bg-indigo-500/20 text-indigo-300' : 'border-white/10 text-slate-400 hover:border-white/20 hover:text-white'}`}>
                       {lvl}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Difficulty */}
+              <div>
+                <label className="block text-xs font-medium text-slate-400 uppercase tracking-wider mb-2">Difficulty</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {DIFFICULTIES.map((d) => (
+                    <button key={d.id} type="button" onClick={() => setDifficulty(d.id)}
+                      className={`rounded-2xl border-2 py-2.5 px-3 text-sm font-medium transition-all text-left ${difficulty === d.id ? d.color : 'border-white/10 text-slate-400 hover:border-white/20 hover:text-white'}`}>
+                      <p className="font-semibold">{d.label}</p>
+                      <p className="text-xs opacity-70 mt-0.5">{d.desc}</p>
                     </button>
                   ))}
                 </div>
